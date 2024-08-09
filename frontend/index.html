@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="/public/manifest.json">
   <link rel="icon" href="/download.png">
   <meta name="theme-color" content="#000000">
   <title>Pole-Finder</title>
@@ -11,6 +11,21 @@
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
+  
+  <!-- Add this script to handle OAuth callback -->
+  <script>
+    // Check if the current URL contains an authorization code
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+
+    if (code) {
+      localStorage.setItem('auth_code', code);  // Save the code to local storage
+      window.location.href = '/';  // Redirect to the main page or wherever needed
+    } else {
+      console.error('Authorization code is missing from the URL');
+    }
+  </script>
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

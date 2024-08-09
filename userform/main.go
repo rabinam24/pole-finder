@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -28,6 +31,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 type config struct {
@@ -101,22 +105,6 @@ type TokenClaims struct {
 	jwt.StandardClaims
 }
 
-var (
-	key   = []byte("MTK1ZWFKNZMTYMRLOS0ZMTQ2LTG1OGUTYJNLM2JHMJG4MZE1")
-	store = sessions.NewCookieStore(key)
-
-	oauth2Config = &oauth2.Config{
-		ClientID:     "pole-finder",
-		ClientSecret: "a5951d903b5c",
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://oauth-staging.wlink.com.np/authorize",
-			TokenURL: "https://oauth-staging.wlink.com.np/oauth/token",
-		},
-		RedirectURL: "http://pole-finder.wlink.com.np:5173",
-		Scopes:      []string{"openid", "profile", "email"},
-	}
-)
-
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -132,46 +120,130 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+var (
+	key   = []byte("MTK1ZWFKNZMTYMRLOS0ZMTQ2LTG1OGUTYJNLM2JHMJG4MZE1")
+	store = sessions.NewCookieStore(key)
+
+	oauth2Config = &oauth2.Config{
+		ClientID:     "607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com",
+		ClientSecret: "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",
+		Endpoint:     google.Endpoint,
+		RedirectURL:  "https://9f6d-2407-5200-403-5cfe-bc23-708c-e033-a4d2.ngrok-free.app/callback",
+		Scopes:       []string{"openid", "profile", "email"},
+	}
+)
+
+func generateCodeVerifier() (string, error) {
+	b := make([]byte, 64)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func generateCodeChallenge(codeVerifier string) string {
+	h := sha256.New()
+	h.Write([]byte(codeVerifier))
+	hash := h.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(hash)
+}
+
+func startOAuthFlow(w http.ResponseWriter, r *http.Request) {
+	codeVerifier, err := generateCodeVerifier()
+	if err != nil {
+		http.Error(w, "Failed to generate code verifier", http.StatusInternalServerError)
+		return
+	}
+	codeChallenge := generateCodeChallenge(codeVerifier)
+
+	session, err := store.Get(r, "cookie-name")
+	if err != nil {
+		http.Error(w, "Failed to get session", http.StatusInternalServerError)
+		return
+	}
+	session.Values["code_verifier"] = codeVerifier
+	if err := session.Save(r, w); err != nil {
+		http.Error(w, "Failed to save session", http.StatusInternalServerError)
+		return
+	}
+
+	authURL := oauth2Config.AuthCodeURL("state", oauth2.AccessTypeOffline)
+	authURL += "&code_challenge=" + url.QueryEscape(codeChallenge)
+	authURL += "&code_challenge_method=S256"
+
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
+}
+
 func handleCallback(w http.ResponseWriter, r *http.Request) {
+	// Log the full URL for debugging
+	log.Printf("Received callback request: %s", r.URL.String())
+	log.Printf("Full Query String: %v", r.URL.RawQuery)
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Error(w, "Authorization code is missing", http.StatusBadRequest)
 		return
 	}
+	log.Printf("Received authorization code: %s", code)
 
-	ctx := context.Background()
-	token, err := oauth2Config.Exchange(ctx, code)
+	session, err := store.Get(r, "cookie-name")
 	if err != nil {
-		http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Failed to get session", http.StatusInternalServerError)
 		return
 	}
 
-	client := oauth2Config.Client(ctx, token)
-	resp, err := client.Get("https://oauth-staging.wlink.com.np/userinfo")
+	codeVerifier, ok := session.Values["code_verifier"].(string)
+	if !ok || codeVerifier == "" {
+		http.Error(w, "Code verifier is missing", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Retrieved code verifier: %s", codeVerifier)
+
+	ctx := context.Background()
+	token, err := oauth2Config.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", codeVerifier))
 	if err != nil {
-		http.Error(w, "Failed to get user info: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Failed to exchange token", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Token received: %s", token.AccessToken)
+
+	client := oauth2Config.Client(ctx, token)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
+	if err != nil {
+		http.Error(w, "Failed to get user info", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	var userInfo map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-		http.Error(w, "Failed to decode user info: "+err.Error(), http.StatusBadRequest)
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Failed to get user info", http.StatusInternalServerError)
 		return
 	}
 
-	session, err := store.Get(r, "cookie-name")
-	if err != nil {
-		http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
+	var userInfo map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		http.Error(w, "Failed to decode user info", http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("User info received: %v", userInfo)
 
 	session.Values["authenticated"] = true
 	session.Values["user_info"] = userInfo
-	session.Save(r, w)
+	if err := session.Save(r, w); err != nil {
+		http.Error(w, "Failed to save session", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(userInfo)
+	if err := json.NewEncoder(w).Encode(userInfo); err != nil {
+		http.Error(w, "Failed to encode user info", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("OAuth callback processed successfully")
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -187,10 +259,12 @@ func logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session.Values["authenticated"] = false
-	session.Save(r, w)
+	if err := session.Save(r, w); err != nil {
+		http.Error(w, "Failed to save session", http.StatusInternalServerError)
+		return
+	}
 
-	logoutURL := fmt.Sprintf("https://oauth-staging.wlink.com.np/v2/logout?client_id=%s&returnTo=%s",
-		oauth2Config.ClientID, "http://pole-finder.wlink.com.np:5173")
+	logoutURL := "https://accounts.google.com/Logout?continue=https://appengine.google.com/_ah/logout?continue=http://localhost:5173"
 
 	http.Redirect(w, r, logoutURL, http.StatusTemporaryRedirect)
 }
@@ -211,16 +285,41 @@ func secret(w http.ResponseWriter, r *http.Request) {
 }
 
 func proxyOAuthToken(w http.ResponseWriter, r *http.Request) {
-	target, _ := url.Parse("https://oauth-staging.wlink.com")
+	target, _ := url.Parse("https://oauth2.googleapis.com")
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	r.URL.Path = "/token"
+
 	proxy.ModifyResponse = func(response *http.Response) error {
-		response.Header.Set("Access-Control-Allow-Origin", "*") // Again, consider specifying allowed origins.
+		response.Header.Set("Access-Control-Allow-Origin", "*")
 		return nil
 	}
 
 	proxy.ServeHTTP(w, r)
+}
+
+func userInfoHandler(w http.ResponseWriter, r *http.Request) {
+	session, err := store.Get(r, "cookie-name")
+	if err != nil {
+		http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	userInfo, ok := session.Values["user_info"].(map[string]interface{})
+	if !ok || userInfo == nil {
+		http.Error(w, "User info not found", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("User Info: %+v", userInfo)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(userInfo)
 }
 
 func handleWebSocketConnections(w http.ResponseWriter, r *http.Request) {
@@ -1401,9 +1500,10 @@ func main() {
 	}
 	defer db.Close()
 
-	// Set up HTTP handlers with required parameters
 	bucketName := "location-tracker"
 	mux := http.NewServeMux()
+
+	// Define all routes
 	mux.HandleFunc("/submit-form", handleFormData(db, minioClient, bucketName, endpoint))
 	mux.HandleFunc("/user-data", handleUserData(db))
 	mux.HandleFunc("/api/data/", handleDeleteData(db))
@@ -1418,30 +1518,14 @@ func main() {
 	mux.HandleFunc("/logins", handleUserLogin(db, cfg))
 	mux.HandleFunc("/refresh-token", handleRefreshToken(cfg))
 	mux.HandleFunc("/password-changer", handlePasswordChanger(db, cfg))
-	http.HandleFunc("/login", login)
-	http.HandleFunc("/callback", handleCallback)
-	http.HandleFunc("/logout", logout)
-	http.HandleFunc("/secret", secret)
-	http.HandleFunc("/oauth/token", proxyOAuthToken)
+	mux.HandleFunc("/login", login)
+	mux.HandleFunc("/callback", handleCallback)
+	mux.HandleFunc("/logout", logout)
+	mux.HandleFunc("/secret", secret)
+	mux.HandleFunc("/proxyOAuthToken", proxyOAuthToken)
+	mux.HandleFunc("/userInfo", userInfoHandler)
 
-	http.Handle("/", corsMiddleware(http.DefaultServeMux))
-
-	// CORS middleware
-	corsMiddleware := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "*")
-
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
-
+	// Apply CORS middleware to the mux
 	handler := corsMiddleware(mux)
 
 	// Start the server

@@ -1,28 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import mkcert from "vite-plugin-mkcert";
-import fs from "fs";
 import path from "path";
-
-const certPath = path.resolve(__dirname, "./certs");
-const keyPath = path.resolve(certPath, "server.key");
-const certFile = path.resolve(certPath, "server.cert");
-
-// Check environment variable or fall back to default HTTPS setting
-const useHttps = process.env.VITE_USE_HTTPS === 'true';
-
-const httpsConfig = useHttps && fs.existsSync(keyPath) && fs.existsSync(certFile)
-    ? {
-        key: fs.readFileSync(keyPath),
-        cert: fs.readFileSync(certFile),
-      }
-    : false;
 
 export default defineConfig({
   plugins: [
     react(),
-    mkcert(), // Use mkcert to handle SSL certificates
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
@@ -65,30 +48,22 @@ export default defineConfig({
   ],
   build: {
     rollupOptions: {
-      external: ["react-oauth/google", "react-oauth/github"],
+      external: [], // Ensure this list is correct
     },
-    chunkSizeWarningLimit: 1000, // Adjust if you are getting chunk size warnings
+    chunkSizeWarningLimit: 1000,
   },
   server: {
-    https: httpsConfig,
-    host: "pole-finder.wlink.com.np",
+    https: false, // Set to false to use HTTP
+    host: "0.0.0.0",
     port: 5173,
     proxy: {
       '/oauth/token': {
-        target: 'https://oauth-staging.wlink.com.np',
+        target: 'http://oauth-staging.wlink.com.np',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/oauth\/token/, '/oauth/token'),
         secure: false,
       },
     },
-    middlewares: [
-      (req, res, next) => {
-        if (req.url.endsWith("sw.js")) {
-          res.setHeader("Content-Type", "application/javascript");
-        }
-        next();
-      },
-    ],
   },
   resolve: {
     alias: {
