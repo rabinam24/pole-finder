@@ -48,6 +48,7 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: "5432"
+<<<<<<< HEAD
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
@@ -57,6 +58,15 @@ services:
       MINIO_SSL: ${MINIO_SSL}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+=======
+      DB_USER: binam
+      DB_PASSWORD: Bhandari
+      DB_NAME: binam
+      MINIO_ENDPOINT: minio-server:9000
+      MINIO_ACCESS_KEY: "DXeRSzJ1flBOehb5Bc1o"
+      MINIO_SECRET_KEY: "tgCTzYPo8YeWzktmIl9A35PqR1TsiPN8wjOtslii"
+      MINIO_SSL: "false"
+>>>>>>> origin/main
     ports:
       - "8080:8080"
     depends_on:
