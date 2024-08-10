@@ -52,8 +52,8 @@ services:
       DB_PASSWORD: Bhandari
       DB_NAME: binam
       MINIO_ENDPOINT: minio-server:9000
-      MINIO_ACCESS_KEY: "DXeRSzJ1flBOehb5Bc1o"
-      MINIO_SECRET_KEY: "tgCTzYPo8YeWzktmIl9A35PqR1TsiPN8wjOtslii"
+      MINIO_ACCESS_KEY: "XrMCE82Vx5yMcqgRNsmF"
+      MINIO_SECRET_KEY: "wLr08VOROJ4RNdNcIYJCCbhMxPiM78EddDZT6EJL"
       MINIO_SSL: "false"
     ports:
       - "8080:8080"

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   Button,
@@ -66,6 +67,9 @@ const RedButton = styled(AnimatedButton)`
   }
 `;
 
+const CLIENT_ID = '607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com';
+const REDIRECT_URI = 'https://740b-45-64-160-84.ngrok-free.app/callback';
+
 function NewLanding() {
   const [trip, setTrip] = useState({
     started: false,
@@ -76,11 +80,9 @@ function NewLanding() {
   });
   const [activeComponent, setActiveComponent] = useState(null);
   const intervalIdRef = useRef(null);
-  const [openModal, setOpenModal] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState("");
-
-  const { loginWithRedirect, user, isAuthenticated: auth0IsAuthenticated } = useAuth0();
+  const [openModal, setOpenModal] = useState(false);
+  const { isAuthenticated, user, getAccessTokenSilently } = useAuth0();
 
   useEffect(() => {
     window.onbeforeunload = () => {
@@ -99,88 +101,33 @@ function NewLanding() {
   }, []);
 
   useEffect(() => {
-    // Check if the username is already stored in localStorage
     const storedUsername = localStorage.getItem('username');
     if (storedUsername) {
       setUsername(storedUsername);
-      setIsAuthenticated(true); // Assuming that having a username means authenticated
     } else {
-      // Fetch the username from the backend after the OAuth flow
-      fetchUsernameFromBackend();
+      const authCode = localStorage.getItem('auth_code');
+      if (authCode) {
+        fetchUsernameFromBackend(authCode);
+      }
     }
   }, []);
 
-  const initiateOAuth = async () => {
+  const fetchUsernameFromBackend = async (code) => {
     try {
-      // Generate code verifier and challenge
-      const codeVerifier = generateCodeVerifier();
-      const codeChallenge = await generateCodeChallenge(codeVerifier);
-  
-      // Define code verifier function
-      function generateCodeVerifier(length = 128) {
-        const array = new Uint8Array(length);
-        window.crypto.getRandomValues(array);
-        return array
-          .reduce((acc, byte) => acc + String.fromCharCode(byte), '')
-          .replace(/[^\w\d]/g, '')
-          .slice(0, length);
-      }
-  
-      // Define code challenge function
-      async function generateCodeChallenge(codeVerifier) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(codeVerifier);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashBase64 = btoa(String.fromCharCode(...hashArray))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-        return hashBase64;
-      }
-  
-      // Save code verifier in local storage
-      localStorage.setItem('code_verifier', codeVerifier);
-  
-      // Define OAuth parameters
-      const CLIENT_ID = '607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com'; // Replace with your actual client ID
-      const REDIRECT_URI = 'https://9f6d-2407-5200-403-5cfe-bc23-708c-e033-a4d2.ngrok-free.app/callback'; // Your callback URL
-      const SCOPES = 'email profile openid'; // Adjust scopes as needed
-  
-      // Create the authorization URL
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
-  
-      // Redirect to Google's OAuth endpoint
-      window.location.href = authUrl;
-    } catch (error) {
-      console.error('Error initiating OAuth:', error);
-    }
-  };
-  
-
-  const fetchUsernameFromBackend = async () => {
-    try {
-      const code = localStorage.getItem('auth_code');
-      
-      if (!code) {
-        throw new Error('Authorization code is missing from local storage');
-      }
-      
       const response = await axios.get('http://localhost:8080/callback', {
         params: { code }
       });
-  
+
       const userInfo = response.data;
       console.log('User info response:', userInfo);
-      
+
       const userName = userInfo.name || userInfo.email || userInfo.username;
       if (!userName) {
         throw new Error('Username or email is not defined in response');
       }
-      
+
       localStorage.setItem('username', userName);
       setUsername(userName);
-      setIsAuthenticated(true);
       console.log('Username set:', userName);
     } catch (error) {
       console.error('Error fetching user info:', error.response ? error.response.data : error);
@@ -189,13 +136,11 @@ function NewLanding() {
       }
     }
   };
-  
 
   useEffect(() => {
     if (isAuthenticated) {
       const fetchUserInfo = async () => {
         try {
-          // Fetch user info for subsequent requests
           const response = await axios.get('http://localhost:8080/api/userinfo');
           const userInfo = response.data;
           const userName = userInfo.name || userInfo.username || userInfo.email;
@@ -211,13 +156,10 @@ function NewLanding() {
     }
   }, [isAuthenticated]);
 
-
-
-  
-
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
+        console.log("Fetching trip state with username:", username);
         const response = await axios.post(
           "http://localhost:8080/get_trip_state",
           { username }
@@ -235,7 +177,7 @@ function NewLanding() {
       } catch (error) {
         console.error("Error polling trip status:", error);
       }
-    }, 115000);
+    }, 5000);
 
     return () => clearInterval(intervalId);
   }, [username]);
@@ -248,48 +190,67 @@ function NewLanding() {
     localStorage.setItem("activeComponent", activeComponent);
   }, [activeComponent]);
 
+  useEffect(() => {
+    if (trip.started && trip.startTime) {
+      intervalIdRef.current = setInterval(() => {
+        setTrip((prevTrip) => ({
+          ...prevTrip,
+          elapsedTime: new Date() - new Date(prevTrip.startTime),
+        }));
+      }, 1000);
+    } else {
+      clearInterval(intervalIdRef.current);
+    }
 
+    return () => clearInterval(intervalIdRef.current);
+  }, [trip.started, trip.startTime]);
 
   const handleStartClick = async () => {
     try {
-      const storedUsername = localStorage.getItem('username');
-      if (!storedUsername) throw new Error('Username is not defined');
-
-      console.log('Attempting to start trip with client name:', storedUsername);
-
-      const response = await axios.post('http://localhost:8080/start_trip', {
-        username: storedUsername,
+      const userName = localStorage.getItem("username");
+      if (!userName) throw new Error("Username is not defined");
+  
+      console.log("Attempting to start trip with username:", userName);
+  
+      const response = await axios.post("http://localhost:8080/start_trip", {
+        username: userName,
       });
+      
       if (response.status === 200) {
-        console.log('Trip started successfully:', response.data);
+        console.log("Trip started successfully:", response.data);
         const currentTime = new Date();
         setTrip({
           started: true,
           startTime: currentTime,
           elapsedTime: 0,
           id: response.data.tripId,
-          username: storedUsername,
+          username: userName,
         });
-        setActiveComponent('ADD_TRAVEL_LOG');
+        setActiveComponent("ADD_TRAVEL_LOG");
       } else {
-        console.error('Error starting trip: Unexpected response status', response.status);
+        console.error("Unexpected response status:", response.status);
       }
     } catch (error) {
-      console.error('Error starting trip:', error);
+      if (error.response && error.response.status === 409) {
+        alert("A trip is already in progress. Please end the current trip before starting a new one.");
+      } else {
+        console.error("Error starting trip:", error.response ? error.response.data : error.message);
+      }
     }
   };
+  
 
   const handleStopClick = async () => {
     try {
-      const storedUsername = localStorage.getItem('username');
-      if (!storedUsername) {
-        throw new Error('Username is not defined in localStorage');
+      const userName = localStorage.getItem("username");
+      if (!userName) {
+        throw new Error("Username is not defined in localStorage");
       }
 
       const response = await axios.post(
-        'http://localhost:8080/end_trip',
-        { username: storedUsername },
-        { headers: { 'Content-Type': 'application/json' } }
+        "http://localhost:8080/end_trip",
+        { username: userName },
+        { headers: { "Content-Type": "application/json" } }
       );
 
       if (response.status === 200) {
@@ -298,24 +259,24 @@ function NewLanding() {
           startTime: null,
           elapsedTime: 0,
           id: null,
-          username: '',
+          username: "",
         });
-        localStorage.removeItem('trip');
+        localStorage.removeItem("trip");
         if (intervalIdRef.current) {
           clearInterval(intervalIdRef.current);
         }
         setActiveComponent(null);
       } else {
-        console.error('Error ending trip: Unexpected response status', response.status);
+        console.error("Error ending trip: Unexpected response status", response.status);
       }
     } catch (error) {
       console.error(
-        'Error ending trip:',
+        "Error ending trip:",
         error.response ? error.response.data : error.message
       );
       if (error.response && error.response.status === 409) {
         alert(
-          'No active trip found. Please ensure a trip is in progress before trying to end it.'
+          "No active trip found. Please ensure a trip is in progress before trying to end it."
         );
       }
     }
@@ -351,44 +312,9 @@ function NewLanding() {
   };
 
   const handleGoogleLogin = () => {
-    loginWithRedirect({
-      connection: "google-oauth2",
-    });
+    window.location.href = `https://accounts.google.com/o/oauth2/auth?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=openid%20profile%20email`;
   };
-
-  // useEffect(() => {
-  //   if (!isAuthenticated) {
-  //     initiateOAuth();
-  //   }
-  // }, [isAuthenticated]);
-
-  const handleLogin =() =>{
-    initiateOAuth();
-  }
-
-
-  const handleAuthSuccess = (username) => {
-    setIsAuthenticated(true);
-    setUsername(username);
-    localStorage.setItem("username", username);
-    setOpenModal(true);
-    console.log("This is the username", username);
-  };
-
-  const renderAuthForm = () => (
-    <div className="authentication-form">
-      <Paper radius="md" p="xl" withBorder>
-        <Text size="lg" weight={500}>
-          Welcome to Trip Logger
-        </Text>
-        <Group grow mb="md" mt="md">
-          <GoogleButton radius="xl" onClick={handleGoogleLogin}>
-            Wordlink
-          </GoogleButton>
-        </Group>
-      </Paper>
-    </div>
-  );
+  
 
   return (
     <>
@@ -401,7 +327,7 @@ function NewLanding() {
                   <AnimatedButton
                     variants={buttonVariants}
                     whileHover="hover"
-                    onClick={handleLogin}
+                    onClick={handleGoogleLogin}
                   >
                     Login
                   </AnimatedButton>

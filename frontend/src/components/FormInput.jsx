@@ -74,7 +74,12 @@ const Form = () => {
   const handleChange = (event) => {
     const { name, files, value } = event.target;
     if (files) {
-      if (files.length === 1) {
+      if (name === "multipleimages") {
+        setUserInfo((prevState) => ({
+          ...prevState,
+          [name]: Array.from(files),
+        }));
+      } else {
         setUserInfo((prevState) => ({
           ...prevState,
           [name]: files[0],
@@ -89,17 +94,15 @@ const Form = () => {
   };
 
   const handleMultipleImages = (event) => {
-    const { name, files } = event.target;
-    if (files) {
-      if (files.length < 2) {
-        setErrorMessage("Upload at least 2 images");
-      } else {
-        setErrorMessage("");
-        setUserInfo((prevState) => ({
-          ...prevState,
-          [name]: files,
-        }));
-      }
+    const { files } = event.target;
+    if (files.length < 2) {
+      setErrorMessage("Upload at least 2 images");
+    } else {
+      setErrorMessage("");
+      setUserInfo((prevState) => ({
+        ...prevState,
+        multipleimages: Array.from(files),
+      }));
     }
   };
 
@@ -123,9 +126,9 @@ const Form = () => {
       formData.append("availableisp", userInfo.availableisp);
       formData.append("selectisp", userInfo.selectisp);
 
-      for (let i = 0; i < userInfo.multipleimages.length; i++) {
-        formData.append("multipleimages", userInfo.multipleimages[i]);
-      }
+      userInfo.multipleimages.forEach((file) => {
+        formData.append("multipleimages", file);
+      });
 
       const formattedAdditionalInfo = additionalInfo.map((info) => ({
         selectisp: info.selectisp,
@@ -149,6 +152,7 @@ const Form = () => {
         setSuccessMessage("");
       }, 2000);
 
+      // Reset form state
       setUserInfo({
         location: "",
         latitude: "",
@@ -157,7 +161,7 @@ const Form = () => {
         selectpolestatus: "",
         selectpolelocation: "",
         description: "",
-        poleimage: "",
+        poleimage: null,
         availableisp: "",
         selectisp: "",
         multipleimages: [],
@@ -165,6 +169,7 @@ const Form = () => {
       setAdditionalInfo([]);
     } catch (error) {
       console.error("Error inserting data:", error);
+      setErrorMessage("Error submitting the form. Please try again.");
     }
   };
 
@@ -177,13 +182,13 @@ const Form = () => {
   };
 
   const handleAdditionalInfoChange = (e, index, inputType) => {
-    const { name, value, files } = e.target;
+    const { value, files } = e.target;
     setAdditionalInfo((prevAdditionalInfo) => {
       const updatedInfo = [...prevAdditionalInfo];
       if (inputType === "selectisp") {
         updatedInfo[index] = { ...updatedInfo[index], selectisp: value };
       } else if (inputType === "multipleimages") {
-        updatedInfo[index] = { ...updatedInfo[index], multipleimages: files };
+        updatedInfo[index] = { ...updatedInfo[index], multipleimages: Array.from(files) };
       }
       return updatedInfo;
     });
