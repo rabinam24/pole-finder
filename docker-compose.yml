@@ -55,6 +55,8 @@ services:
       MINIO_ACCESS_KEY: "XrMCE82Vx5yMcqgRNsmF"
       MINIO_SECRET_KEY: "wLr08VOROJ4RNdNcIYJCCbhMxPiM78EddDZT6EJL"
       MINIO_SSL: "false"
+      GOOGLE_CLIENT_ID: "607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com"
+      GOOGLE_CLIENT_SECRET: "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"
     ports:
       - "8080:8080"
     depends_on:

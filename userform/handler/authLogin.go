@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
@@ -19,8 +20,8 @@ var (
 	store = sessions.NewCookieStore(key)
 
 	oauth2Config = &oauth2.Config{
-		ClientID:     "607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com",
-		ClientSecret: "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",
+		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		Endpoint:     google.Endpoint,
 		RedirectURL:  "https://740b-45-64-160-84.ngrok-free.app/callback",
 		Scopes:       []string{"openid", "profile", "email"},
