@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import {
   Button,
@@ -30,15 +29,46 @@ const AnimatedGrid = styled(motion.div)`
   gap: 7px;
 `;
 
-const AnimatedButton = styled(motion.button)`
+const ButtonBase = styled(motion.button)`
   background-color: #3f51b5;
   color: white;
   border: none;
   border-radius: 4px;
-  padding: 10px 20px;
+  width: 150px;
+  height: 50px;
+  display: inline-block;
+  text-align: center;
+  line-height: 50px;
   cursor: pointer;
+  padding: 0px;
+
   &:hover {
     background-color: #303f9f;
+  }
+
+  @media (max-width: 768px) {
+    width: 120px;
+    height: 45px;
+    line-height: 45px;
+    font-size: 15px;
+  }
+
+  @media (max-width: 480px) {
+    width: 95px;
+    height: 40px;
+    line-height: 40px;
+    font-size: 15px;
+  }
+`;
+
+const AnimatedButton = styled(ButtonBase)`
+  background-color: #3f51b5;
+`;
+
+const RedButton = styled(ButtonBase)`
+  background-color: #f44336;
+  &:hover {
+    background-color: #d32f2f;
   }
 `;
 
@@ -60,16 +90,9 @@ const gridVariants = {
   },
 };
 
-const RedButton = styled(AnimatedButton)`
-  background-color: #f44336;
-  &:hover {
-    background-color: #d32f2f;
-  }
-`;
-
-const CLIENT_ID = '607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com';
-const REDIRECT_URI = 'https://740b-45-64-160-84.ngrok-free.app/callback';
-
+const CLIENT_ID =
+  "607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com";
+const REDIRECT_URI = "https://5e28-202-79-62-4.ngrok-free.app";
 
 function NewLanding() {
   const [trip, setTrip] = useState({
@@ -85,7 +108,6 @@ function NewLanding() {
   const [openModal, setOpenModal] = useState(false);
 
   const { isAuthenticated, user, getAccessTokenSilently } = useAuth0();
-
 
   useEffect(() => {
     window.onbeforeunload = () => {
@@ -104,12 +126,11 @@ function NewLanding() {
   }, []);
 
   useEffect(() => {
-
-    const storedUsername = localStorage.getItem('username');
+    const storedUsername = localStorage.getItem("username");
     if (storedUsername) {
       setUsername(storedUsername);
     } else {
-      const authCode = localStorage.getItem('auth_code');
+      const authCode = localStorage.getItem("auth_code");
       if (authCode) {
         fetchUsernameFromBackend(authCode);
       }
@@ -118,25 +139,30 @@ function NewLanding() {
 
   const fetchUsernameFromBackend = async (code) => {
     try {
-      const response = await axios.get('http://localhost:8080/callback', {
-        params: { code }
+      const response = await axios.get("http://localhost:8080/calling", {
+        params: { code },
       });
 
       const userInfo = response.data;
-      console.log('User info response:', userInfo);
+      console.log("User info response:", userInfo);
 
       const userName = userInfo.name || userInfo.email || userInfo.username;
       if (!userName) {
-        throw new Error('Username or email is not defined in response');
+        throw new Error("Username or email is not defined in response");
       }
 
-      localStorage.setItem('username', userName);
+      localStorage.setItem("username", userName);
       setUsername(userName);
-      console.log('Username set:', userName);
+      console.log("Username set:", userName);
     } catch (error) {
-      console.error('Error fetching user info:', error.response ? error.response.data : error);
+      console.error(
+        "Error fetching user info:",
+        error.response ? error.response.data : error
+      );
       if (error.response && error.response.status === 404) {
-        console.error('The /callback endpoint is not found. Please check the server-side implementation.');
+        console.error(
+          "The /callback endpoint is not found. Please check the server-side implementation."
+        );
       }
     }
   };
@@ -145,18 +171,34 @@ function NewLanding() {
     if (isAuthenticated) {
       const fetchUserInfo = async () => {
         try {
-          const response = await axios.get('http://localhost:8080/api/userinfo');
+          const response = await axios.get(
+            "http://localhost:8080/api/userinfo"
+          );
           const userInfo = response.data;
           const userName = userInfo.name || userInfo.username || userInfo.email;
-          localStorage.setItem('username', userName);
+          localStorage.setItem("username", userName);
           setUsername(userName);
-          console.log('Fetched username:', userName);
+          console.log("Fetched username:", userName);
         } catch (error) {
-          console.error('Error fetching user info:', error);
+          console.error("Error fetching user info:", error);
         }
       };
 
       fetchUserInfo();
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const UserDetailsInfo = async () => {
+        try {
+          const reponse = await axios.post("http://localhost:8080/save-user");
+          console.log(reponse);
+        } catch (error) {
+          console.error("Error saving the userdetailsinfo:", error);
+        }
+        UserDetailsInfo();
+      };
     }
   }, [isAuthenticated]);
 
@@ -213,13 +255,13 @@ function NewLanding() {
     try {
       const userName = localStorage.getItem("username");
       if (!userName) throw new Error("Username is not defined");
-  
+
       console.log("Attempting to start trip with username:", userName);
-  
+
       const response = await axios.post("http://localhost:8080/start_trip", {
         username: userName,
       });
-      
+
       if (response.status === 200) {
         console.log("Trip started successfully:", response.data);
         const currentTime = new Date();
@@ -236,13 +278,17 @@ function NewLanding() {
       }
     } catch (error) {
       if (error.response && error.response.status === 409) {
-        alert("A trip is already in progress. Please end the current trip before starting a new one.");
+        alert(
+          "A trip is already in progress. Please end the current trip before starting a new one."
+        );
       } else {
-        console.error("Error starting trip:", error.response ? error.response.data : error.message);
+        console.error(
+          "Error starting trip:",
+          error.response ? error.response.data : error.message
+        );
       }
     }
   };
-  
 
   const handleStopClick = async () => {
     try {
@@ -250,7 +296,6 @@ function NewLanding() {
       if (!userName) {
         throw new Error("Username is not defined in localStorage");
       }
-
 
       const response = await axios.post(
         "http://localhost:8080/end_trip",
@@ -272,7 +317,10 @@ function NewLanding() {
         }
         setActiveComponent(null);
       } else {
-        console.error("Error ending trip: Unexpected response status", response.status);
+        console.error(
+          "Error ending trip: Unexpected response status",
+          response.status
+        );
       }
     } catch (error) {
       console.error(
@@ -319,8 +367,6 @@ function NewLanding() {
   const handleGoogleLogin = () => {
     window.location.href = `https://accounts.google.com/o/oauth2/auth?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=openid%20profile%20email`;
   };
-  
-
 
   return (
     <>
@@ -328,7 +374,11 @@ function NewLanding() {
         <Grid item xs={12} sm={6}>
           {!trip.started && (
             <>
-              <AnimatedGrid initial="hidden" animate="visible" variants={gridVariants}>
+              <AnimatedGrid
+                initial="hidden"
+                animate="visible"
+                variants={gridVariants}
+              >
                 <Grid item>
                   <AnimatedButton
                     variants={buttonVariants}
@@ -385,7 +435,11 @@ function NewLanding() {
                     <Button onClick={() => setOpenModal(false)} color="primary">
                       No
                     </Button>
-                    <Button onClick={handleStartClick} color="primary" autoFocus>
+                    <Button
+                      onClick={handleStartClick}
+                      color="primary"
+                      autoFocus
+                    >
                       Yes
                     </Button>
                   </DialogActions>
@@ -406,7 +460,11 @@ function NewLanding() {
                 </span>
               </p>
 
-              <AnimatedGrid initial="hidden" animate="visible" variants={gridVariants}>
+              <AnimatedGrid
+                initial="hidden"
+                animate="visible"
+                variants={gridVariants}
+              >
                 <Grid item>
                   <AnimatedButton
                     variants={buttonVariants}
@@ -414,8 +472,8 @@ function NewLanding() {
                     onClick={() => toggleComponent("ADD_TRAVEL_LOG")}
                   >
                     {activeComponent === "ADD_TRAVEL_LOG"
-                      ? "Hide Travel Log"
-                      : "Show Travel Log"}
+                      ? "Travel Log"
+                      : "Travel Log"}
                   </AnimatedButton>
                 </Grid>
                 <Grid item>
@@ -434,8 +492,8 @@ function NewLanding() {
                     onClick={() => toggleComponent("TRAVEL_LOG_DETAILS")}
                   >
                     {activeComponent === "TRAVEL_LOG_DETAILS"
-                      ? "Hide Travel Log Details"
-                      : "Show Travel Log Details"}
+                      ? "Log Details"
+                      : "Log Details"}
                   </AnimatedButton>
                 </Grid>
                 <Grid item>
@@ -445,8 +503,8 @@ function NewLanding() {
                     onClick={() => toggleComponent("USER_MAP_DETAILS")}
                   >
                     {activeComponent === "USER_MAP_DETAILS"
-                      ? "Hide User Map Details"
-                      : "Show User Map Details"}
+                      ? "Map Details"
+                      : "Map Details"}
                   </AnimatedButton>
                 </Grid>
               </AnimatedGrid>

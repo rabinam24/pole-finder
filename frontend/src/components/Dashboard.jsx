@@ -14,7 +14,6 @@ const chartSetting = {
 
 const valueFormatter = (value) => `${value}kms`;
 
-// Function to get the last 7 days in the desired format
 const getLast7Days = () => {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const result = [];
@@ -38,8 +37,6 @@ export default function HorizontalBars() {
         const response = await axios.get("http://localhost:8080/total-distances");
         const data = response.data;
 
-        console.log("Fetched data:", data); // Log the fetched data
-
         if (data.length > 0) {
           const last7Days = getLast7Days();
           const formattedData = last7Days.map(day => {
@@ -50,8 +47,6 @@ export default function HorizontalBars() {
             };
           });
 
-          console.log("Formatted data:", formattedData); // Log the formatted data
-
           setDataset(formattedData);
         }
       } catch (error) {
@@ -61,8 +56,6 @@ export default function HorizontalBars() {
 
     fetchData();
   }, []);
-
-  console.log("Dataset:", dataset); // Log the dataset to see what's being passed to BarChart
 
   return (
     <BarChart

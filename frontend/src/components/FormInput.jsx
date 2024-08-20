@@ -15,6 +15,7 @@ import {
   Container,
 } from "@mui/material";
 import axios from "axios";
+import "./forminput.css";
 
 const Form = () => {
   const [products, setProducts] = useState({
@@ -40,7 +41,6 @@ const Form = () => {
   const [additionalInfo, setAdditionalInfo] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
   const [showUserData, setShowUserData] = useState(false);
-
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
@@ -71,7 +71,7 @@ const Form = () => {
     }
   }, [userInfo.availableisp, userInfo.multipleimages]);
 
-  const handleChange = (event) => {
+  const handleLatLongChange = (event) => {
     const { name, files, value } = event.target;
     if (files) {
       if (name === "multipleimages") {
@@ -93,6 +93,27 @@ const Form = () => {
     }
   };
 
+  const handleChange = (event) => {
+    const { name, files, value } = event.target;
+    if (files) {
+      if (name === "multipleimages") {
+        setUserInfo((prevState) => ({
+          ...prevState,
+          [name]: Array.from(files),
+        }));
+      } else {
+        setUserInfo((prevState) => ({
+          ...prevState,
+          [name]: files[0],
+        }));
+      }
+    } else {
+      setUserInfo((prevState) => ({
+        ...prevState,
+        [name]: value,
+      }));
+    }
+  };
   const handleMultipleImages = (event) => {
     const { files } = event.target;
     if (files.length < 2) {
@@ -134,7 +155,10 @@ const Form = () => {
         selectisp: info.selectisp,
         multipleimages: Array.from(info.multipleimages),
       }));
-      formData.append("additionalInfo", JSON.stringify(formattedAdditionalInfo));
+      formData.append(
+        "additionalInfo",
+        JSON.stringify(formattedAdditionalInfo)
+      );
 
       const response = await axios.post(
         "http://localhost:8080/submit-form",
@@ -188,7 +212,10 @@ const Form = () => {
       if (inputType === "selectisp") {
         updatedInfo[index] = { ...updatedInfo[index], selectisp: value };
       } else if (inputType === "multipleimages") {
-        updatedInfo[index] = { ...updatedInfo[index], multipleimages: Array.from(files) };
+        updatedInfo[index] = {
+          ...updatedInfo[index],
+          multipleimages: Array.from(files),
+        };
       }
       return updatedInfo;
     });
@@ -200,11 +227,12 @@ const Form = () => {
 
   return (
     <Container maxWidth="sm">
-      <Box className="input-form text-black" mt={5}>
+      <Box className="input-form text-black" mt={3}>
         <form
           style={{
             display: "flex",
             flexDirection: "column",
+            minheight: "0.75em",
           }}
           onSubmit={handleSubmit}
         >
@@ -224,22 +252,10 @@ const Form = () => {
           />
 
           <TextField
-            name="latitude"
-            label="Latitude"
-            value={userInfo.latitude}
-            onChange={handleChange}
-            variant="outlined"
-            margin="normal"
-            required
-            fullWidth
-            disabled
-          />
-
-          <TextField
-            name="longitude"
-            label="Longitude"
-            value={userInfo.longitude}
-            onChange={handleChange}
+            name="latlong"
+            label="Latitude, Longitude"
+            value={`${userInfo.latitude}, ${userInfo.longitude}`}
+            onChange={handleLatLongChange}
             variant="outlined"
             margin="normal"
             required
@@ -277,9 +293,7 @@ const Form = () => {
               onChange={handleChange}
             >
               <MenuItem value="">Select Pole Status</MenuItem>
-              <MenuItem value="In Great Condition">
-                In Great Condition
-              </MenuItem>
+              <MenuItem value="In Great Condition">In Great Condition</MenuItem>
               <MenuItem value="In Moderate Condition">
                 In Moderate Condition
               </MenuItem>
@@ -395,7 +409,9 @@ const Form = () => {
                     </Select>
                   </FormControl>
 
-                  <FormLabel component="legend">Upload Multiple Images</FormLabel>
+                  <FormLabel component="legend">
+                    Upload Multiple Images
+                  </FormLabel>
                   <input
                     multiple
                     type="file"
