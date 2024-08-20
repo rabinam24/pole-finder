@@ -39,7 +39,11 @@ func SetupRoutes(db *sql.DB) http.Handler {
 	mux.HandleFunc("/submit-form", handler.HandleFormData(db, minioClient, bucketName, endpoint))
 
 	mux.HandleFunc("/user-data", handler.HandleUserData(db))
-	mux.HandleFunc("/api/data", handler.HandleDeleteData(db))
+	mux.HandleFunc("/user-datas", handler.HandleUserDataParticular(db))
+
+	mux.HandleFunc("/api/data/{id}", handler.HandleDeleteData(db))
+	mux.HandleFunc("/save-user", handler.SaveUser(db))
+
 	mux.HandleFunc("/api/gps-data", handler.HandlegetGpsData(db))
 	mux.HandleFunc("/api/pole-image", handler.HandleUserPoleImage(db))
 	mux.HandleFunc("/start_trip", handler.HandleStartTrip(db))
@@ -51,7 +55,7 @@ func SetupRoutes(db *sql.DB) http.Handler {
 	mux.HandleFunc("/refresh-token", handler.HandleRefreshToken(cfg))
 	mux.HandleFunc("/password-changer", handler.HandlePasswordChanger(db, cfg))
 	mux.HandleFunc("/logins", handler.Login)
-	mux.HandleFunc("/callback", handler.HandleCallback)
+	mux.HandleFunc("/calling", handler.HandleCallback)
 	mux.HandleFunc("/logout", handler.Logout)
 	mux.HandleFunc("/secret", handler.Secret)
 	mux.HandleFunc("/oauth/token", handler.ProxyOAuthToken)

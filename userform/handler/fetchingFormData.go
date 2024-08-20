@@ -35,10 +35,95 @@ func HandleUserData(db *sql.DB) http.HandlerFunc {
 				&formData.SelectPoleStatus,
 				&formData.SelectPoleLocation,
 				&formData.Description,
-				&poleImageJSON, // Changed to sql.NullString
+				&poleImageJSON,
 				&formData.AvailableISP,
 				&formData.SelectISP,
-				&multipleImagesJSON, // Changed to sql.NullString
+				&multipleImagesJSON,
+				&formData.CreatedAt,
+			)
+			if err != nil {
+				log.Printf("Error scanning row: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			// Handle NULL values for poleImage
+			if poleImageJSON.Valid {
+				formData.PoleImage = poleImageJSON.String
+			}
+
+			// Handle NULL values for multipleImages
+			if multipleImagesJSON.Valid && multipleImagesJSON.String != "" {
+				if err := json.Unmarshal([]byte(multipleImagesJSON.String), &formData.MultipleImages); err != nil {
+					log.Printf("Error unmarshalling JSON: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
+			}
+
+			data = append(data, formData)
+		}
+
+		if err := rows.Err(); err != nil {
+			log.Printf("Row iteration error: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func HandleUserDataParticular(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username := r.URL.Query().Get("username")
+		if username == "" {
+			http.Error(w, "Missing username parameter", http.StatusBadRequest)
+			return
+		}
+
+		log.Printf("Fetching the user details for the particular user: %s", username)
+
+		query := `
+        SELECT uf.id, uf.location, uf.latitude, uf.longitude, uf.selectpole, uf.selectpolestatus, 
+               uf.selectpolelocation, uf.description, uf.poleimage, uf.availableisp, uf.selectisp, 
+               uf.multipleimages, uf.created_at 
+        FROM userform uf
+        JOIN users u ON uf.user_id = u.id
+        WHERE u.username = $1
+        `
+
+		rows, err := db.Query(query, username)
+		if err != nil {
+			log.Printf("Error querying the database for particular users: %v", err)
+			http.Error(w, "Error querying the database", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var data []models.FormData
+		for rows.Next() {
+			var formData models.FormData
+			var poleImageJSON, multipleImagesJSON sql.NullString
+
+			err := rows.Scan(
+				&formData.ID,
+				&formData.Location,
+				&formData.Latitude,
+				&formData.Longitude,
+				&formData.SelectPole,
+				&formData.SelectPoleStatus,
+				&formData.SelectPoleLocation,
+				&formData.Description,
+				&poleImageJSON,
+				&formData.AvailableISP,
+				&formData.SelectISP,
+				&multipleImagesJSON,
 				&formData.CreatedAt,
 			)
 			if err != nil {

@@ -12,6 +12,7 @@ CREATE TABLE userform (
     poleimage VARCHAR(255),
     multipleimages VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    user_id INTEGER REFERENCES user_info(id),
 );
 
 CREATE TABLE public.trip (
@@ -29,4 +30,13 @@ CREATE TABLE users (
     email VARCHAR(50) NOT NULL UNIQUE,
     phone VARCHAR(50) UNIQUE,
     password VARCHAR(100) NOT NULL
+);
+
+
+CREATE TABLE user_info(
+    id SERIAL PRIMARY KEY,
+    auth0_user_id VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

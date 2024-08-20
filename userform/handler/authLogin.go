@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -23,7 +24,7 @@ var (
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		Endpoint:     google.Endpoint,
-		RedirectURL:  "https://740b-45-64-160-84.ngrok-free.app/callback",
+		RedirectURL:  "https://5e28-202-79-62-4.ngrok-free.app",
 		Scopes:       []string{"openid", "profile", "email"},
 	}
 )
@@ -66,6 +67,8 @@ func HandleCallback(w http.ResponseWriter, r *http.Request) {
 	session.Values["authenticated"] = true
 	session.Values["user_info"] = userInfo
 	session.Save(r, w)
+	log.Printf("Session after saving: %+v", session.Values)
+	log.Printf("Session ID: %s", session.ID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(userInfo)
@@ -103,7 +106,7 @@ func Secret(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintln(w, "The cake is a lie!")
+	fmt.Fprintln(w, "The liverpool is a GOAT!")
 }
 
 func ProxyOAuthToken(w http.ResponseWriter, r *http.Request) {
@@ -120,18 +123,109 @@ func ProxyOAuthToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetUserInfo(w http.ResponseWriter, r *http.Request) {
+	// Get the session from the request
 	session, err := store.Get(r, "cookie-name")
 	if err != nil {
 		http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Retrieve user info from the session
 	userInfo, ok := session.Values["user_info"].(map[string]interface{})
 	if !ok {
 		http.Error(w, "User info not found in session", http.StatusNotFound)
 		return
 	}
 
+	// Respond with user info in JSON format
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(userInfo)
+	if err := json.NewEncoder(w).Encode(userInfo); err != nil {
+		http.Error(w, "Failed to encode user info: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+var db *sql.DB
+
+func saveUser(db *sql.DB, auth0UserID, email, name string) error {
+	var id int
+	err := db.QueryRow("SELECT id FROM user_info WHERE auth0_user_id = $1", auth0UserID).Scan(&id)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// User does not exist, insert a new record
+			_, err = db.Exec(
+				`INSERT INTO user_info (auth0_user_id, email, name) VALUES ($1, $2, $3)`,
+				auth0UserID, email, name,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to insert user: %v", err)
+			}
+		} else {
+			return fmt.Errorf("failed to check if user exists: %v", err)
+		}
+	} else {
+		// User exists, you can update their information if needed
+		_, err = db.Exec(
+			`UPDATE user_info SET email = $1, name = $2 WHERE auth0_user_id = $3`,
+			email, name, auth0UserID,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to update user: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func SaveUser(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, err := store.Get(r, "cookie-name")
+		if err != nil {
+			http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
+			log.Printf("Failed to get session in SaveUser: %v", err)
+			return
+		}
+
+		// Debugging: Print session values
+		log.Printf("Session values: %+v", session.Values)
+
+		userInfo, ok := session.Values["user_info"].(map[string]interface{})
+		if !ok {
+			http.Error(w, "User info not found in session", http.StatusInternalServerError)
+			log.Println("User info not found in session during SaveUser")
+			return
+		}
+
+		auth0UserID, ok := userInfo["sub"].(string)
+		if !ok {
+			http.Error(w, "Invalid Auth0 user ID", http.StatusInternalServerError)
+			log.Println("Invalid Auth0 user ID")
+			return
+		}
+
+		email, ok := userInfo["email"].(string)
+		if !ok {
+			http.Error(w, "Invalid email", http.StatusInternalServerError)
+			log.Println("Invalid email")
+			return
+		}
+
+		name, ok := userInfo["name"].(string)
+		if !ok {
+			http.Error(w, "Invalid name", http.StatusInternalServerError)
+			log.Println("Invalid name")
+			return
+		}
+
+		// Save user to the database
+		if err := saveUser(db, auth0UserID, email, name); err != nil {
+			http.Error(w, "Failed to save user: "+err.Error(), http.StatusInternalServerError)
+			log.Printf("Failed to save user: %v", err)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "User saved successfully")
+	}
 }
