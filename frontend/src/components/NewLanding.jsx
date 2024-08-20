@@ -94,6 +94,7 @@ const CLIENT_ID =
   "607168653915-f5sac4tb4mvuslkj2l0cit912nupdkr3.apps.googleusercontent.com";
 const REDIRECT_URI = "https://5e28-202-79-62-4.ngrok-free.app";
 
+
 function NewLanding() {
   const [trip, setTrip] = useState({
     started: false,
@@ -107,7 +108,9 @@ function NewLanding() {
   const [username, setUsername] = useState("");
   const [openModal, setOpenModal] = useState(false);
 
+
   const { isAuthenticated, user, getAccessTokenSilently } = useAuth0();
+
 
   useEffect(() => {
     window.onbeforeunload = () => {
@@ -126,7 +129,9 @@ function NewLanding() {
   }, []);
 
   useEffect(() => {
+
     const storedUsername = localStorage.getItem("username");
+
     if (storedUsername) {
       setUsername(storedUsername);
     } else {
@@ -278,6 +283,7 @@ function NewLanding() {
       }
     } catch (error) {
       if (error.response && error.response.status === 409) {
+
         alert(
           "A trip is already in progress. Please end the current trip before starting a new one."
         );
@@ -290,12 +296,14 @@ function NewLanding() {
     }
   };
 
+
   const handleStopClick = async () => {
     try {
       const userName = localStorage.getItem("username");
       if (!userName) {
         throw new Error("Username is not defined in localStorage");
       }
+
 
       const response = await axios.post(
         "http://localhost:8080/end_trip",
@@ -367,6 +375,7 @@ function NewLanding() {
   const handleGoogleLogin = () => {
     window.location.href = `https://accounts.google.com/o/oauth2/auth?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=openid%20profile%20email`;
   };
+
 
   return (
     <>
