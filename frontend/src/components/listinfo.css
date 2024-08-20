@@ -22,3 +22,6 @@ td:first-child{
 }
 
 
+.__m__-r3{
+    --mantine-spacing-xs: calc(.1rem* var(--mantine-scale)) !important;
+}

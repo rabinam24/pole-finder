@@ -42,6 +42,22 @@ const ListInfoMap = ({ locationData }) => {
   const [loading, setLoading] = useState(false);
   const [dateString, setDateString] = useState("");
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const mantineTheme = useMantineTheme();
+
+  useEffect(() => {
+    const fetchDate = async () => {
+      try {
+        const response = await axios.get("http://localhost:8080/user-data");
+        setDateString(response.data.created_at); // Ensure correct path
+      } catch (error) {
+        console.error("Error fetching the date:", error);
+      }
+    };
+    fetchDate();
+  }, []);
+
   const handleCloseModal = () => {
     setOpenModal(false);
   };
@@ -64,18 +80,6 @@ const ListInfoMap = ({ locationData }) => {
     const dataDate = new Date(dateString);
     return isToday(dataDate) ? "blue" : "red";
   };
-
-  useEffect(() => {
-    const fetchDate = async () => {
-      try {
-        const response = await axios.get("http://localhost:8080/user-data");
-        setDateString(response.data.created_at); // Ensure the correct path to the date field
-      } catch (error) {
-        console.log("Error while fetching the date:", error);
-      }
-    };
-    fetchDate();
-  }, []);
 
   const renderCellContent = (info, header) => {
     switch (header) {
@@ -109,10 +113,6 @@ const ListInfoMap = ({ locationData }) => {
     }
   };
 
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const mantineTheme = useMantineTheme();
-
   return (
     <Container size="lg" px="xs">
       {isMobile ? (
@@ -131,7 +131,7 @@ const ListInfoMap = ({ locationData }) => {
               <MantinePaper
                 shadow="xs"
                 radius="md"
-                p="md"
+                p="sm"
                 withBorder
                 style={{ backgroundColor: mantineTheme.colors.gray[0] }}
               >
@@ -186,18 +186,15 @@ const ListInfoMap = ({ locationData }) => {
                 sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
               >
                 {headers.map((header) => (
-                  <motion.td
+                  <TableCell
                     key={header}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5 }}
-                    style={{
+                    sx={{
                       borderBottom: "1px solid rgba(224, 224, 224, 1)",
                       textAlign: "center",
                     }}
                   >
                     {renderCellContent(locationData, header)}
-                  </motion.td>
+                  </TableCell>
                 ))}
               </TableRow>
             </TableBody>
@@ -238,17 +235,18 @@ const ListInfoMap = ({ locationData }) => {
                   />
                 </Card>
               </Grid>
-              {locationData.multipleimages_urls.map((imageUrl, index) => (
-                <Grid item xs={12} sm={6} key={index}>
-                  <Card>
-                    <img
-                      src={imageUrl}
-                      alt={`Location ${index}`}
-                      style={{ width: "100%", height: "auto" }}
-                    />
-                  </Card>
-                </Grid>
-              ))}
+              {Array.isArray(locationData.multipleimages_urls) &&
+                locationData.multipleimages_urls.map((imageUrl, index) => (
+                  <Grid item xs={12} sm={6} key={index}>
+                    <Card>
+                      <img
+                        src={imageUrl}
+                        alt={`Location ${index}`}
+                        style={{ width: "100%", height: "auto" }}
+                      />
+                    </Card>
+                  </Grid>
+                ))}
             </Grid>
           )}
           <Button

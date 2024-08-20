@@ -16,7 +16,7 @@ const Documents = () => {
     useEffect(() => {
         const fetchPoleImage = async () => {
             try {
-                const response = await axios.get("http://localhost:8080/api/pole-image");
+                const response = await axios.get("https://27c9-2407-5200-403-a24b-c537-c58e-8337-abff.ngrok-free.app/api/pole-image");
                 console.log(response.data);
                 setPoleImage(response.data.poleImage);
                 setMultipleImages(response.data.multipleImages);

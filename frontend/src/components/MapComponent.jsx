@@ -10,13 +10,14 @@ import {
   CircularProgress,
   Button,
 } from "@mui/material";
-import ListInfoMap from "./ListInfoMap"; // Adjust import path as necessary
+import ListInfoMap from "./ListInfoMap"; // Adjust the import path as necessary
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import markerBlack from "../assets/img/marker-icon-2x-black.png";
 
+// Setup default Leaflet marker icons
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -35,22 +36,44 @@ const MapWithWebSocket = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get("http://localhost:8080//user-data");
-        const data = response.data;
-        setLocationData(data);
-
-        if (data && data.length > 0) {
-          setMapCenter([data[0].latitude, data[0].longitude]);
+        const response = await axios.get("http://localhost:8080/user-data");
+        
+        // Check if response data is in JSON format
+        if (response.headers['content-type'].includes('application/json')) {
+          const data = response.data;
+          
+          if (Array.isArray(data)) {
+            setLocationData(data);
+            if (data.length > 0) {
+              setMapCenter([data[0].latitude, data[0].longitude]);
+            }
+          } else {
+            console.error("Expected an array of location data, but got:", data);
+          }
+        } else {
+          console.error("Expected JSON response, but got:", response.headers['content-type']);
         }
       } catch (error) {
-        console.error("Error fetching location data:", error);
+        if (error.response) {
+          // Server responded with a status other than 2xx
+          console.error("Error response data:", error.response.data);
+          console.error("Error response status:", error.response.status);
+          console.error("Error response headers:", error.response.headers);
+        } else if (error.request) {
+          // No response received
+          console.error("Error request:", error.request);
+        } else {
+          // Something else happened
+          console.error("Error message:", error.message);
+        }
       } finally {
         setLoading(false);
       }
     };
-
+  
     fetchData();
   }, []);
+  
 
   const handleMarkerClick = (location) => {
     setSelectedLocation(location);
@@ -58,18 +81,13 @@ const MapWithWebSocket = () => {
   };
 
   const getMarkerColor = (dateString) => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const todayDate = `${year}-${month}-${day}`;
-
-    return todayDate === dateString ? markerIcon : markerBlack;
+    const today = new Date().toISOString().split("T")[0];
+    return dateString === today ? markerIcon : markerBlack;
   };
 
   const createIcon = (iconUrl) => {
     return new L.Icon({
-      iconUrl: iconUrl,
+      iconUrl,
       shadowUrl: markerShadow,
       iconSize: [25, 41],
       iconAnchor: [12, 41],
@@ -84,13 +102,13 @@ const MapWithWebSocket = () => {
 
   return (
     <div>
-      {locationData && locationData.length > 0 ? (
+      {locationData.length > 0 ? (
         <MapContainer
           center={mapCenter}
           zoom={zoomLevel}
           style={{
             height: "400px",
-            margin: "10px 10px",
+            margin: "10px",
             border: "1px solid #ddd",
             borderRadius: "5px",
           }}
@@ -100,7 +118,9 @@ const MapWithWebSocket = () => {
             crossOrigin="anonymous"
           />
           {locationData.map((location, index) => {
-            const markerColor = getMarkerColor(location.created_at.split("T")[0]);
+            const markerColor = location.created_at
+              ? getMarkerColor(location.created_at.split("T")[0])
+              : markerBlack;
             return (
               <Marker
                 key={index}
@@ -115,8 +135,7 @@ const MapWithWebSocket = () => {
         <Typography
           variant="h6"
           color="error"
-          sx={{ mt: 2, pl: 5 }}
-          justifyContent="center"
+          sx={{ mt: 2, textAlign: "center" }}
         >
           Please insert the Data First...
         </Typography>
